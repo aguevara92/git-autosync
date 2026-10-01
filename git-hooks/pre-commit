@@ -1,0 +1,13 @@
+#!/bin/sh
+# Blocks a commit when the staged diff adds something that looks like a live API key.
+# Bypass for a verified false positive: git commit --no-verify
+PATTERN='shp(at|ss|ca|pa)_[a-f0-9]{32}|EAA[A-Za-z0-9]{90,}|sk-ant-[A-Za-z0-9_-]{30,}|sk-(proj-)?[A-Za-z0-9_-]{40,}|AIza[0-9A-Za-z_-]{35}|gh[pousr]_[A-Za-z0-9]{36}|pk_[a-f0-9]{30,}|[0-9]{8,10}:AA[A-Za-z0-9_-]{33}|sbp_[a-f0-9]{40}|sb_secret_[A-Za-z0-9_-]{20,}|pplx-[A-Za-z0-9]{40,}|ATTA[A-Za-z0-9]{60,}|GOCSPX-[A-Za-z0-9_-]{20,}|1//0[A-Za-z0-9_-]{40,}|apify_api_[A-Za-z0-9]{30,}|eyJhbGciOi[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+HITS=$(git diff --cached -U0 --no-color | grep -E '^\+[^+]' | grep -E -- "$PATTERN" | grep -vE 'role":"anon"|sb_publishable_')
+if [ -n "$HITS" ]; then
+  echo "pre-commit: possible API key in staged changes. Move it to .env." >&2
+  echo "$HITS" | cut -c1-80 >&2
+  exit 1
+fi
+BAD=$(git diff --cached --name-only | grep -E '(^|/)\.env($|\.)|(^|/)\.mcp.*\.json$|config\.local\.js$' | grep -v '\.example$')
+if [ -n "$BAD" ]; then echo "pre-commit: secret file staged: $BAD" >&2; exit 1; fi
+exit 0
